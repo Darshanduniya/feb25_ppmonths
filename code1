@@ -1,0 +1,57 @@
+from airflow import DAG
+from airflow.providers.ssh.operators.ssh import SSHOperator
+from airflow.utils.dates import days_ago
+from airflow.hooks.base_hook import BaseHook
+
+# Initialize the DAG
+dag = DAG(
+    'ssh_task_example',
+    description='Execute SSH command and get output',
+    schedule_interval=None,  # run on demand
+    start_date=days_ago(1),
+)
+
+# Define SSH connection (Configure in Airflow UI or use BaseHook for connection string)
+ssh_conn_id = "my_ssh_connection"
+
+# Define the command to run
+command = "cat /mapr/mapre0lp/whha_request/prd/npd/databases/prd_us_npd_pos_tec_cet.db/data_delivery_log"
+
+# SSHOperator to run the command
+ssh_task = SSHOperator(
+    task_id='ssh_command_task',
+    ssh_conn_id=ssh_conn_id,
+    command=command,
+    do_xcom_push=True,  # Enable XCom to pass result between tasks
+    dag=dag,
+)
+
+# Function to extract specific fields from the output
+def extract_fields(**kwargs):
+    # Retrieve the output of the SSH task
+    output = kwargs['task_instance'].xcom_pull(task_ids='ssh_command_task')
+    
+    if output:
+        # Split the output by pipe (|)
+        columns = output.split('|')
+        
+        # Extract the desired columns (row[4] and row[5])
+        start_ppmonth = columns[4]
+        end_ppmonth = columns[5]
+        
+        print(f"start_ppmonth: {start_ppmonth}, end_ppmonth: {end_ppmonth}")
+        return start_ppmonth, end_ppmonth
+    else:
+        print("No output from SSH command")
+        return None, None
+
+# Task to extract values
+extract_task = PythonOperator(
+    task_id='extract_fields_task',
+    python_callable=extract_fields,
+    provide_context=True,  # This is required to access XCom and context
+    dag=dag,
+)
+
+# Define task dependencies
+ssh_task >> extract_task
