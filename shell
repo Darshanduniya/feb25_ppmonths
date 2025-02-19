@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Execute API request and capture response and status code
+RESPONSE=$(curl -s -w "\n%{http_code}" --header "rest_api_plugin_http_token: IRI_AUTHENTICATION_TOKEN" \
+"https://analyticstools.infores.com/airflow/api/experimental/dags/amp_etl_genmerch_fact_load/dag_runs" -d \
+'{"conf":{"industry_name":"prod_us_npd_pos_spe_mso_p55_ps3854","table_name":"hlx_wkly_fact_spe_mso","data_state":"p55_ps3854"}}')
+
+# Extract status code (last line of response)
+STATUS_CODE=$(echo "$RESPONSE" | tail -n1)
+
+# Extract actual response (all lines except the last one)
+MESSAGE=$(echo "$RESPONSE" | sed '$d')
+
+# Print results
+echo "Status Code: $STATUS_CODE"
+echo "Response Message: $MESSAGE"
+
+# Check success condition
+if [ "$STATUS_CODE" -eq 200 ]; then
+    echo "Success"
+else
+    echo "Fail"
+fi
