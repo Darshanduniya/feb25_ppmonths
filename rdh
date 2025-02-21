@@ -1,0 +1,43 @@
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.utils.dates import days_ago
+import time
+
+def check_task_state(**kwargs):
+    # Fetch industry name from DAG conf
+    industry = kwargs.get("dag_run").conf.get("industry", "UNKNOWN")
+
+    # Only run if industry == 'TEC_POS_BSM'
+    if industry != "TEC_POS_BSM":
+        return "Industry not TEC_POS_BSM, skipping task."
+
+    run_id = kwargs['dag_run'].run_id  # Get DAG run_id dynamically
+    task_id = 'rdh'  # Task to check
+    postgres_hook = PostgresHook(postgres_conn_id='airflow_db')  # Airflow metadata DB connection
+
+    while True:
+        sql = "SELECT state FROM task_instance WHERE run_id = %s AND task_id = %s"
+        result = postgres_hook.get_first(sql, parameters=(run_id, task_id))
+
+        if result and result[0] == 'success':
+            return "Task marked as success."
+
+        time.sleep(300)  # Wait 5 minutes before checking again
+
+# Define the DAG
+with DAG(
+    'check_task_state_dag',
+    default_args={'owner': 'airflow', 'depends_on_past': False},
+    schedule_interval=None,  # Trigger manually or externally
+    start_date=days_ago(1),
+    catchup=False,
+) as dag:
+
+    check_task = PythonOperator(
+        task_id='check_rdh_task_state',
+        python_callable=check_task_state,
+        provide_context=True,
+    )
+
+    check_task
