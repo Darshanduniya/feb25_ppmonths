@@ -1,0 +1,18 @@
+# Define the file path
+file_path = "/data/duniya/supp.csv"
+
+# Initialize an empty list to store the extracted keys
+filtered_keys = []
+
+# Open the file and read it line by line
+with open(file_path, "r") as file:
+    for line in file:
+        # Split each line by ',' to get the values as a list
+        parts = line.strip().split(",")  # Remove whitespace & split by comma
+        
+        # Check if the second value (index 1) is "1002"
+        if len(parts) > 1 and parts[1] == "1002":
+            filtered_keys.append(parts[0])  # Add the first column value to the list
+
+# Print the final output as a comma-separated string
+print(",".join(filtered_keys))
