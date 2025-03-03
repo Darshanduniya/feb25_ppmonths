@@ -1,0 +1,46 @@
+import re
+
+hive_create_statement = """\
+/usr/local/hive/bin/hive -e 'CREATE TABLE IF NOT EXISTS prd_us_npd_pos_tec_cet.fact_sltransactions_stg_nnn (
+    rid bigint,
+    retailer_item_id bigint,
+    col_20 string,
+    mod_type string
+) 
+PARTITIONED BY (pp_week int, pp_month int) 
+ROW FORMAT SERDE 
+    "org.apache.hadoop.hive.ql.io.orc.OrcSerde" 
+STORED AS INPUTFORMAT 
+    "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat" 
+OUTPUTFORMAT 
+    "org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat" 
+LOCATION 
+    "hdfs://lnx3555.ch3.prod.i.com:9000/user/hive/warehouse/prd_us_npd_pos_tec_cet.db/fact_sltransactions" 
+TBLPROPERTIES ( 
+    "orc.compress"="SNAPPY", 
+    "transient_lastDdlTime"="1662646717"
+);
+"""
+
+# 1️⃣ Extract the partition columns dynamically
+partition_match = re.search(r"PARTITIONED BY \((.*?)\)", hive_create_statement, re.DOTALL)
+partition_columns = partition_match.group(1) if partition_match else ""
+
+# 2️⃣ Extract transient_lastDdlTime dynamically
+ddl_time_match = re.search(r'"transient_lastDdlTime"="(\d+)', hive_create_statement)
+ddl_time_value = ddl_time_match.group(1) if ddl_time_match else ""
+
+# 3️⃣ Remove everything from PARTITIONED BY onwards
+hive_create_statement = re.sub(r"PARTITIONED BY \(.*?\).*?TBLPROPERTIES", "TBLPROPERTIES", hive_create_statement, flags=re.DOTALL)
+
+# 4️⃣ Remove TBLPROPERTIES but keep the transient_lastDdlTime value
+hive_create_statement = re.sub(r"TBLPROPERTIES\s*\(.*?\)", "", hive_create_statement, flags=re.DOTALL)
+
+# 5️⃣ Insert partition columns INSIDE the CREATE TABLE statement
+hive_create_statement = hive_create_statement.strip()
+hive_create_statement = hive_create_statement.replace(")", f",\n    {partition_columns}\n)")
+
+# 6️⃣ Change the storage format and finalize
+hive_create_statement += f"\nUSING orc\n    'transient_lastDdlTime'='{ddl_time_value}'\n);"
+
+print(hive_create_statement)
