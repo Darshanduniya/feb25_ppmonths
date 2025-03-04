@@ -1,0 +1,78 @@
+import re
+
+def transform_hive_create_statement(hive_create_statement):
+    # Extract partitioned columns
+    partition_match = re.search(r"PARTITIONED BY \((.*?)\)", hive_create_statement, re.DOTALL)
+    transient_match = re.search(r'"""transient_lastDdlTime"""="""(\d+)"""', hive_create_statement)
+    
+    transient_lastDdlTime = transient_match.group(1) if transient_match else ""
+    
+    if partition_match:
+        partition_columns = partition_match.group(1).strip()
+        
+        # Remove unnecessary parts
+        cleaned_statement = re.sub(r"PARTITIONED BY \(.*?\)", "", hive_create_statement, flags=re.DOTALL)
+        cleaned_statement = re.sub(r"ROW FORMAT SERDE.*?TBLPROPERTIES \(.*?\);", "", cleaned_statement, flags=re.DOTALL)
+        
+        # Ensure partition columns are added inside table definition
+        modified_statement = re.sub(r"\)\s*$", f", {partition_columns}\n) USING orc TBLPROPERTIES ('transient_lastDdlTime'='{transient_lastDdlTime}')", cleaned_statement, flags=re.MULTILINE)
+        
+        return modified_statement
+    
+    return hive_create_statement  # Return original if no partitions found
+
+hive_create_statement = '''/usr/local/hive/bin/hive -e 'CREATE TABLE IF NOT EXISTS prd_us_npd_pos_tec_cet.fact_sltransactions_stg_nnn (
+    rid bigint,
+    retailer_item_id bigint,
+    npditem_id int,
+    item_country_code string,
+    retailer_id int,
+    venue_id int,
+    outlet_store_id int,
+    outlet string,
+    store_id string,
+    postal_code string,
+    edited_sales decimal(38,15),
+    edited_units decimal(38,15),
+    edited_inventory decimal(38,15),
+    weightshipped string,
+    transaction_date string,
+    avgcost decimal(38,15),
+    col_1 string,
+    col_2 string,
+    col_3 string,
+    col_4 string,
+    col_5 string,
+    col_6 string,
+    col_7 string,
+    col_8 string,
+    col_9 string,
+    col_10 string,
+    col_11 string,
+    col_12 string,
+    col_13 string,
+    col_14 string,
+    col_15 string,
+    col_16 string,
+    col_17 string,
+    col_18 string,
+    col_19 string,
+    col_20 string,
+    mod_type string
+) 
+PARTITIONED BY (pp_week int, pp_month int) 
+ROW FORMAT SERDE 
+    """org.apache.hadoop.hive.ql.io.orc.OrcSerde""" 
+STORED AS INPUTFORMAT 
+    """org.apache.hadoop.hive.ql.io.orc.OrcInputFormat""" 
+OUTPUTFORMAT 
+    """org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat""" 
+LOCATION 
+    """hdfs://lnx3555.ch3.prod.i.com:9000/user/hive/warehouse/prd_us_npd_pos_tec_cet.db/fact_sltransactions""" 
+TBLPROPERTIES ( 
+    """orc.compress"""="""SNAPPY""", 
+    """transient_lastDdlTime"""="""1662646717"""
+);'''
+
+transformed_statement = transform_hive_create_statement(hive_create_statement)
+print(transformed_statement)
